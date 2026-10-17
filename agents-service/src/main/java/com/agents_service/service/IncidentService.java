@@ -56,18 +56,36 @@ public class IncidentService {
      * Returns an existing active incident for the same target and
      * deduplication key, or creates a new incident and context.
      */
-    @Transactional
-    public IncidentEntity openOrGetIncident(
-            String targetId,
-            String dedupKey,
-            String alertFingerprint,
-            JsonNode alertPayload) {
-                acquireDeduplicationLock(targetId, dedupKey);
+   
+        @Transactional
+        public IncidentEntity openOrGetIncident(
+                String targetId,
+                String dedupKey,
+                String alertFingerprint,
+                JsonNode alertPayload) {
+
+        return openOrGetIncidentResult(
+                targetId,
+                dedupKey,
+                alertFingerprint,
+                alertPayload
+        ).incident();
+        }
+
+        @Transactional
+        public IncidentOpenResult openOrGetIncidentResult(
+                String targetId,
+                String dedupKey,
+                String alertFingerprint,
+                JsonNode alertPayload) {
+
         if (targetId == null || targetId.isBlank()
                 || dedupKey == null || dedupKey.isBlank()) {
-            throw new IllegalArgumentException(
-                    "targetId and dedupKey are required");
+                throw new IllegalArgumentException(
+                        "targetId and dedupKey are required");
         }
+
+        acquireDeduplicationLock(targetId, dedupKey);
 
         var existing = incidentRepository
                 .findFirstByTargetIdAndDedupKeyAndStateNotInOrderByCreatedAtDesc(
@@ -76,13 +94,13 @@ public class IncidentService {
                         Set.copyOf(TERMINAL_STATES));
 
         if (existing.isPresent()) {
-            recordEvent(
-                    existing.get().getId(),
-                    "DUPLICATE_ALERT_RECEIVED",
-                    JsonNodeFactory.instance.objectNode()
-            );
+                recordEvent(
+                        existing.get().getId(),
+                        "DUPLICATE_ALERT_RECEIVED",
+                        JsonNodeFactory.instance.objectNode()
+                );
 
-            return existing.get();
+                return new IncidentOpenResult(existing.get(), false);
         }
 
         IncidentEntity incident = new IncidentEntity();
@@ -101,12 +119,9 @@ public class IncidentService {
         IncidentContextEntity context = new IncidentContextEntity();
         context.setIncidentId(savedIncident.getId());
         context.setRollingSummary("");
-        context.setRecentMessages(
-                JsonNodeFactory.instance.arrayNode());
-        context.setCurrentHypotheses(
-                JsonNodeFactory.instance.arrayNode());
-        context.setEvidenceIds(
-                JsonNodeFactory.instance.arrayNode());
+        context.setRecentMessages(JsonNodeFactory.instance.arrayNode());
+        context.setCurrentHypotheses(JsonNodeFactory.instance.arrayNode());
+        context.setEvidenceIds(JsonNodeFactory.instance.arrayNode());
         context.setStepCount(0);
 
         contextRepository.save(context);
@@ -118,8 +133,9 @@ public class IncidentService {
 
         recordEvent(savedIncident.getId(), "INCIDENT_CREATED", details);
 
-        return savedIncident;
-    }
+        return new IncidentOpenResult(savedIncident, true);
+        }
+
 
     /**
      * Records an append-only audit event.

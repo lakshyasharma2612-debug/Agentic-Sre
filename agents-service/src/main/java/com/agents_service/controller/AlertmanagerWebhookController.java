@@ -91,12 +91,14 @@ public class AlertmanagerWebhookController {
             String fingerprint =
                     alert.path("fingerprint").asString("");
 
-            var incident = incidentService.openOrGetIncident(
-                    activeTargetId,
-                    dedupKey,
-                    fingerprint.isBlank() ? null : fingerprint,
-                    alert
-            );
+            var result = incidentService.openOrGetIncidentResult(
+            activeTargetId,
+            dedupKey,
+            fingerprint.isBlank() ? null : fingerprint,
+            alert
+    );
+
+    var incident = result.incident();
 
             ObjectNode details =
                     JsonNodeFactory.instance.objectNode();
