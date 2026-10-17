@@ -1,0 +1,7 @@
+activeTarget: event-platform
+
+targets:
+  event-platform:
+    profile: config/targets/event-platform/profile.yaml
+
+ 

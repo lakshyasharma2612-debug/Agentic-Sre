@@ -1,0 +1,15 @@
+id: event-platform
+
+kubernetes:
+  namespace: event-platform
+
+  deployments:
+    - analysis-service
+    - api-service
+
+  services:
+    - analysis-service
+    - api-service
+
+prometheus:
+  url: http://localhost:9090
