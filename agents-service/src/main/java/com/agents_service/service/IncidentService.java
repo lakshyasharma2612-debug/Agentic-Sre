@@ -114,7 +114,7 @@ public class IncidentService {
         );
         incident.setState("INVESTIGATING");
 
-        IncidentEntity savedIncident = incidentRepository.save(incident);
+        IncidentEntity savedIncident = incidentRepository.saveAndFlush(incident);
 
         IncidentContextEntity context = new IncidentContextEntity();
         context.setIncidentId(savedIncident.getId());
@@ -125,6 +125,16 @@ public class IncidentService {
         context.setStepCount(0);
 
         contextRepository.save(context);
+        
+        jdbcTemplate.update("""
+                INSERT INTO incident_investigation_jobs
+                        (incident_id, status)
+                VALUES (?, 'PENDING')
+                ON CONFLICT (incident_id) DO NOTHING
+                """,
+                savedIncident.getId()
+        );
+
 
         ObjectNode details = JsonNodeFactory.instance.objectNode();
         details.put("targetId", targetId);
@@ -132,6 +142,18 @@ public class IncidentService {
         details.put("state", "INVESTIGATING");
 
         recordEvent(savedIncident.getId(), "INCIDENT_CREATED", details);
+        
+        ObjectNode queuedDetails =
+                JsonNodeFactory.instance.objectNode();
+
+        queuedDetails.put("status", "PENDING");
+
+        recordEvent(
+                savedIncident.getId(),
+                "INVESTIGATION_QUEUED",
+                queuedDetails
+        );
+
 
         return new IncidentOpenResult(savedIncident, true);
         }

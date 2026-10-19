@@ -12,4 +12,4 @@ kubernetes:
     - api-service
 
 prometheus:
-  url: http://localhost:9090
+  url: http://localhost:9091

@@ -30,13 +30,14 @@ public class PrometheusService {
                         .baseUrl(prometheusUrl)
                         .build();
 
+
         return client
                 .get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/api/v1/query")
-                        .queryParam("query", query)
-                        .build())
+                        .queryParam("query", "{query}")
+                        .build(query))
                 .retrieve()
                 .body(String.class);
-    }
+                }
 }
