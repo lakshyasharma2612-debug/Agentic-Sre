@@ -1,13 +1,13 @@
 
 package com.agents_service.controller;
 
- 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.agents_service.service.IncidentAlertService;
 import com.agents_service.service.IncidentService;
 
 import tools.jackson.databind.JsonNode;
@@ -15,19 +15,22 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
- 
 
 @RestController
 public class AlertmanagerWebhookController {
 
     private final IncidentService incidentService;
+    private final IncidentAlertService incidentAlertService;
     private final String activeTargetId;
 
     public AlertmanagerWebhookController(
             IncidentService incidentService,
+            IncidentAlertService incidentAlertService,
             @Value("${agent.active-target-id}") String activeTargetId) {
         this.incidentService = incidentService;
+        this.incidentAlertService = incidentAlertService;
         this.activeTargetId = activeTargetId;
     }
 
@@ -39,91 +42,119 @@ public class AlertmanagerWebhookController {
 
         if (!alerts.isArray()) {
             return ResponseEntity.badRequest().body(
-                    Map.of("error", "Expected an Alertmanager payload with an alerts array"));
+                    Map.of("error",
+                            "Expected an Alertmanager payload with an alerts array"));
         }
 
-        // Validate all firing alerts before writing anything.
+        // Validate the complete payload before writing anything.
         for (JsonNode alert : alerts) {
-            if (!"firing".equals(alert.path("status").asString())) {
+            String status = alert.path("status").asString("");
+            if (!"firing".equals(status) && !"resolved".equals(status)) {
                 continue;
             }
 
             JsonNode labels = alert.path("labels");
-            String alertName = labels.path("alertname").asString("");
-
-            if (!labels.isObject() || alertName.isBlank()) {
+            if (!labels.isObject()
+                    || labels.path("alertname").asString("").isBlank()) {
                 return ResponseEntity.badRequest().body(
                         Map.of("error",
-                                "Every firing alert must have labels.alertname"));
+                                "Every firing/resolved alert must have labels.alertname"));
             }
         }
 
-        int processed = 0;
+        int processedFiring = 0;
+        int processedResolved = 0;
         int ignored = 0;
+        int unmatchedResolved = 0;
 
         for (JsonNode alert : alerts) {
             String status = alert.path("status").asString("");
+            JsonNode labels = alert.path("labels");
 
-            // Resolved notifications must not create new incidents.
-            // Incident closure will be handled by the verification workflow.
-            if (!"firing".equals(status)) {
+            if (!"firing".equals(status) && !"resolved".equals(status)) {
                 ignored++;
                 continue;
             }
 
-            JsonNode labels = alert.path("labels");
-
             String alertName = labels.path("alertname").asString("");
-            String service = firstNonBlank(
-                    labels.path("service").asString(""),
-                    labels.path("job").asString(""),
-                    labels.path("app").asString(""),
-                    "unknown-service"
-            );
             String namespace = firstNonBlank(
                     labels.path("namespace").asString(""),
-                    "default"
-            );
+                    "unknown-namespace");
 
-            String dedupKey =
-                    alertName + ":" + service + ":" + namespace;
+            String workload = firstNonBlank(
+                    labels.path("deployment").asString(""),
+                    labels.path("statefulset").asString(""),
+                    labels.path("daemonset").asString(""),
+                    labels.path("app").asString(""),
+                    labels.path("service").asString(""),
+                    labels.path("pod").asString(""),
+                    labels.path("job").asString(""),
+                    alertName);
 
-            String fingerprint =
-                    alert.path("fingerprint").asString("");
+            String dedupKey = String.join(
+                    "/",
+                    activeTargetId.trim().toLowerCase(Locale.ROOT),
+                    namespace.trim().toLowerCase(Locale.ROOT),
+                    workload.trim().toLowerCase(Locale.ROOT));
 
-            var result = incidentService.openOrGetIncidentResult(
-            activeTargetId,
-            dedupKey,
-            fingerprint.isBlank() ? null : fingerprint,
-            alert
-    );
+            String fingerprint = alert.path("fingerprint").asString("");
 
-    var incident = result.incident();
-
-            ObjectNode details =
-                    JsonNodeFactory.instance.objectNode();
-
-            details.put("alertname", alertName);
-            details.put("service", service);
-            details.put("namespace", namespace);
-
-            if (!fingerprint.isBlank()) {
-                details.put("fingerprint", fingerprint);
+            if (fingerprint.isBlank()) {
+                // Without a fingerprint, safe per-alert lifecycle matching
+                // is not possible.
+                ignored++;
+                continue;
             }
 
-            incidentService.recordEvent(
-                    incident.getId(),
-                    "ALERT_RECEIVED",
-                    details
-            );
+            if ("firing".equals(status)) {
+                var result = incidentService.openOrGetIncidentResult(
+                        activeTargetId,
+                        dedupKey,
+                        fingerprint,
+                        alert);
 
-            processed++;
+                var incident = result.incident();
+
+                incidentAlertService.recordFiring(
+                        incident.getId(),
+                        activeTargetId,
+                        fingerprint,
+                        alertName,
+                        alert);
+
+                ObjectNode details = JsonNodeFactory.instance.objectNode();
+                details.put("alertname", alertName);
+                details.put("namespace", namespace);
+                details.put("fingerprint", fingerprint);
+                details.put("status", "firing");
+
+                incidentService.recordEvent(
+                        incident.getId(),
+                        "ALERT_RECEIVED",
+                        details);
+
+                processedFiring++;
+            } else {
+                var resolvedIncident = incidentAlertService.recordResolved(
+                        activeTargetId,
+                        fingerprint,
+                        alertName,
+                        alert);
+
+                if (resolvedIncident.isPresent()) {
+                    processedResolved++;
+                } else {
+                    unmatchedResolved++;
+                }
+            }
         }
 
         Map<String, Object> response = new HashMap<>();
         response.put("received", alerts.size());
-        response.put("processedFiringAlerts", processed);
-        response.put("ignoredNonFiringAlerts", ignored);
+        response.put("processedFiringAlerts", processedFiring);
+        response.put("processedResolvedAlerts", processedResolved);
+        response.put("unmatchedResolvedAlerts", unmatchedResolved);
+        response.put("ignoredAlerts", ignored);
 
         return ResponseEntity.ok(response);
     }
@@ -136,11 +167,4 @@ public class AlertmanagerWebhookController {
         }
         return "unknown";
     }
-    private String textOrEmpty(JsonNode node) {
-        if (node == null || node.isNull() || node.isMissingNode()) {
-            return "";
-        }
-
-        return node.asString("");
-    }   
 }

@@ -167,10 +167,9 @@ public class IncidentOrchestrator {
                     context.getStepCount() + 1);
 
             // Only a validated DIAGNOSED result advances the state.
-            if (diagnosis.status() == Status.DIAGNOSED) {
+            if (diagnosis.status() == Status.DIAGNOSED||diagnosis.status() == Status.INSUFFICIENT_EVIDENCE) {
                 incidentService.changeState(incidentId, "DIAGNOSED");
             }
-
             ObjectNode completedDetails =
                     JsonNodeFactory.instance.objectNode();
 

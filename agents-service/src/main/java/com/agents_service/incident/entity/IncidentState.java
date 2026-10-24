@@ -43,7 +43,7 @@ public enum IncidentState {
 
         return switch (this) {
             case INVESTIGATING -> next == DIAGNOSED;
-            case DIAGNOSED -> next == ACTING;
+            case DIAGNOSED -> next == ACTING||next==VERIFYING;
             case ACTING -> next == VERIFYING;
             case VERIFYING ->
                     next == RESOLVED || next == INVESTIGATING;

@@ -30,6 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -382,6 +383,26 @@ public class IncidentService {
                         return null;
                 }
         );
+        }
+        @Transactional
+        public boolean beginRecoveryVerificationIfDiagnosed(UUID incidentId) {
+        IncidentEntity incident = requireIncident(incidentId);
+
+        IncidentState current =
+                IncidentState.valueOf(incident.getState());
+
+        // Another resolution notification may already have started verification.
+        if (current == IncidentState.VERIFYING) {
+                return true;
+        }
+
+        // Do not interrupt an investigation or transition an unrelated state.
+        if (current != IncidentState.DIAGNOSED) {
+                return false;
+        }
+
+        changeState(incidentId, IncidentState.VERIFYING.name());
+        return true;
         }
 
 }
