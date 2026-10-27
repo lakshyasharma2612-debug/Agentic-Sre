@@ -1,6 +1,6 @@
+
 package com.agents_service.incident.entity;
 
- 
 import java.util.EnumSet;
 import java.util.Set;
 
@@ -8,6 +8,7 @@ public enum IncidentState {
 
     INVESTIGATING,
     DIAGNOSED,
+    INCONCLUSIVE,
     ACTING,
     VERIFYING,
     RESOLVED,
@@ -42,11 +43,23 @@ public enum IncidentState {
         }
 
         return switch (this) {
-            case INVESTIGATING -> next == DIAGNOSED;
-            case DIAGNOSED -> next == ACTING||next==VERIFYING;
-            case ACTING -> next == VERIFYING;
+            case INVESTIGATING ->
+                    next == DIAGNOSED || next == INCONCLUSIVE;
+
+            case INCONCLUSIVE ->
+                    next == INVESTIGATING
+                    || next == DIAGNOSED
+                    || next == VERIFYING;
+
+            case DIAGNOSED ->
+                    next == ACTING || next == VERIFYING;
+
+            case ACTING ->
+                    next == VERIFYING;
+
             case VERIFYING ->
                     next == RESOLVED || next == INVESTIGATING;
+
             default -> false;
         };
     }

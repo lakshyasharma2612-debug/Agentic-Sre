@@ -384,20 +384,20 @@ public class IncidentService {
                 }
         );
         }
+
         @Transactional
-        public boolean beginRecoveryVerificationIfDiagnosed(UUID incidentId) {
+        public boolean beginRecoveryVerificationIfEligible(UUID incidentId) {
         IncidentEntity incident = requireIncident(incidentId);
 
         IncidentState current =
                 IncidentState.valueOf(incident.getState());
 
-        // Another resolution notification may already have started verification.
         if (current == IncidentState.VERIFYING) {
                 return true;
         }
 
-        // Do not interrupt an investigation or transition an unrelated state.
-        if (current != IncidentState.DIAGNOSED) {
+        if (current != IncidentState.DIAGNOSED
+                && current != IncidentState.INCONCLUSIVE) {
                 return false;
         }
 

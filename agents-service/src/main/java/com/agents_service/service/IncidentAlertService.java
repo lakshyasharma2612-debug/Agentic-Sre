@@ -178,7 +178,7 @@ public class IncidentAlertService {
         if (!hasFiringAlerts) {
                 boolean verificationStarted =
                         incidentService
-                                .beginRecoveryVerificationIfDiagnosed(incidentId);
+                         .beginRecoveryVerificationIfEligible(incidentId);
 
                 if (verificationStarted) {
                 ObjectNode verificationDetails =

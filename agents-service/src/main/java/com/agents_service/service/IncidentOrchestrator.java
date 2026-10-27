@@ -11,6 +11,7 @@ import com.agents_service.incident.dto.InvestigationDiagnosis.Observation;
 import com.agents_service.incident.dto.InvestigationDiagnosis.Status;
 import com.agents_service.incident.entity.IncidentContextEntity;
 import com.agents_service.incident.entity.IncidentEntity;
+import com.agents_service.incident.entity.IncidentState;
 import com.agents_service.incident.repository.IncidentRepository;
 import com.agents_service.incident.service.DiagnosisValidator;
 import com.agents_service.tool.AgentTools;
@@ -166,10 +167,14 @@ public class IncidentOrchestrator {
                             : JsonNodeFactory.instance.arrayNode(),
                     context.getStepCount() + 1);
 
-            // Only a validated DIAGNOSED result advances the state.
-            if (diagnosis.status() == Status.DIAGNOSED||diagnosis.status() == Status.INSUFFICIENT_EVIDENCE) {
-                incidentService.changeState(incidentId, "DIAGNOSED");
-            }
+           // Only a validated DIAGNOSED result advances the state.
+        IncidentState nextState =
+                diagnosis.status() == Status.DIAGNOSED
+                        ? IncidentState.DIAGNOSED
+                        : IncidentState.INCONCLUSIVE;
+
+        incidentService.changeState(incidentId, nextState.name());
+        
             ObjectNode completedDetails =
                     JsonNodeFactory.instance.objectNode();
 
