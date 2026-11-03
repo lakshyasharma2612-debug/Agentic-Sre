@@ -1,5 +1,6 @@
 package com.tools_service.tool;
 
+import tools.jackson.databind.ObjectMapper;
 import com.tools_service.k8s.KubernetesService;
 import com.tools_service.tool.dto.ToolRequest;
 import com.tools_service.tool.dto.ToolResponse;
@@ -15,6 +16,7 @@ import java.util.Map;
 public class KubernetesToolHandler implements ToolHandler {
 
     private final KubernetesService kubernetesService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public ToolResponse execute(ToolRequest request) {
@@ -24,6 +26,8 @@ public class KubernetesToolHandler implements ToolHandler {
             case "getPods" -> getPods(request);
 
             case "getPodLogs" -> getPodLogs(request);
+
+            case "getPodReadiness" -> getPodReadiness(request);
 
             default -> ToolResponse.failure(
                     "Unsupported Kubernetes tool: " + request.getTool()
@@ -40,6 +44,37 @@ public class KubernetesToolHandler implements ToolHandler {
         return ToolResponse.success(
                 pods.toString()
         );
+    }
+
+    private ToolResponse getPodReadiness(ToolRequest request) {
+        Map<String, Object> args = request.getArguments();
+
+        if (args == null) {
+            return ToolResponse.failure(
+                    "Arguments are required for getPodReadiness");
+        }
+
+        Object value = args.get("podName");
+        String podName = value instanceof String
+                ? (String) value
+                : null;
+
+        if (podName == null || podName.isBlank()) {
+            return ToolResponse.failure(
+                    "podName is required for getPodReadiness");
+        }
+
+        var readiness = kubernetesService.getPodReadiness(
+                request.getTargetId(),
+                podName);
+
+        try {
+            return ToolResponse.success(
+                    objectMapper.writeValueAsString(readiness));
+        } catch (Exception e) {
+            return ToolResponse.failure(
+                    "Could not serialize pod readiness: " + e.getMessage());
+        }
     }
 
     private ToolResponse getPodLogs(ToolRequest request) {

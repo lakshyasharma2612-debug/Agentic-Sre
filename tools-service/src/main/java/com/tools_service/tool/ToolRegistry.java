@@ -15,6 +15,8 @@ public class ToolRegistry {
         handlers.put("getPods", kubernetesToolHandler);
         handlers.put("getPodLogs", kubernetesToolHandler);
         handlers.put("queryPrometheus", prometheusToolHandler);
+        handlers.put("getPodReadiness", kubernetesToolHandler);
+        
     }
 
     public ToolHandler getHandler(String toolName) {
