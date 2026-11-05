@@ -1,6 +1,10 @@
-package com.agents_service.recovery;
+package com.agents_service;
 
 import com.agents_service.client.ToolsServiceClient;
+import com.agents_service.recovery.PodReadyRecoveryEvaluator;
+import com.agents_service.recovery.RecoveryEvaluation;
+import com.agents_service.recovery.RecoveryPolicy;
+import com.agents_service.recovery.RecoveryStatus;
 import com.agents_service.tool.dto.ToolResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

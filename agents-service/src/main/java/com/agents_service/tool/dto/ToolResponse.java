@@ -2,8 +2,10 @@ package com.agents_service.tool.dto;
 
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
+@Setter 
 @NoArgsConstructor
 public class ToolResponse {
 
